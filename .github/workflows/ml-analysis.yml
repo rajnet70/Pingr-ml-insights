@@ -1,1 +1,25 @@
+name: Run Pingr ML Tracker
 
+on:
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          pip install pandas
+
+      - name: Run ML tracker
+        run: |
+          python Pingr_ML_Tracker.py
