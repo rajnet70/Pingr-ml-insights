@@ -9,10 +9,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
@@ -20,13 +20,12 @@ jobs:
         run: |
           pip install pandas
 
-      - name: Run ML tracker with full debug
+      - name: Run ML tracker
         run: |
-          set -x
           python pingr_ml_tracker.py
 
       - name: Upload cleaned CSV
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: pingr_cleaned_data
           path: pingr_cleaned_data.csv
