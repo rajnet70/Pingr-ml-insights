@@ -20,7 +20,7 @@ jobs:
         run: |
           pip install pandas
 
-      - name: Run ML Tracker (show output)
+      - name: Run ML tracker with full debug
         run: |
-          echo "Running Pingr ML Tracker..."
-          python Pingr_ML_Tracker.py || true
+          set -x
+          python Pingr_ML_Tracker.py
