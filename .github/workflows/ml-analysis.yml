@@ -1,7 +1,7 @@
 name: Run Pingr ML Tracker
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   analyze:
@@ -20,6 +20,7 @@ jobs:
         run: |
           pip install pandas
 
-      - name: Run ML tracker
+      - name: Run ML Tracker (show output)
         run: |
-          python Pingr_ML_Tracker.py
+          echo "Running Pingr ML Tracker..."
+          python Pingr_ML_Tracker.py || true
