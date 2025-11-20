@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import datetime
 from pathlib import Path
 
-LOG_FILE = "alert_log.jsonl"   # The file you will upload manually
+LOG_FILE = "alert_log.jsonl"   # The file you upload manually
 
 def load_jsonl(path):
     data = []
@@ -16,6 +16,7 @@ def load_jsonl(path):
             except:
                 pass
     return data
+
 
 def main():
     print("🔍 Pingr ML Tracker Starting...\n")
@@ -53,6 +54,7 @@ def main():
     # -------------------------
     print("📊 --- HIGH LEVEL SUMMARY ---\n")
     print("Total entries:", len(df))
+
     alerts = df[df["alert_sent"] == True]
     print("Total alerts sent:", len(alerts))
 
@@ -71,13 +73,53 @@ def main():
     else:
         print("No alerts found.")
 
+    # -------------------------------------------------
+    # 6. RSI RANGE ANALYSIS  (NEW SECTION YOU REQUESTED)
+    # -------------------------------------------------
+    print("\n🔵 --- RSI RANGE ANALYSIS ---\n")
+
+    if "rsi_15m" in df.columns:
+        rsi_data = df[df["rsi_15m"].notna()]
+
+        if len(rsi_data) > 0:
+            print("RSI range of ALL data:")
+            print(rsi_data["rsi_15m"].describe())
+
+            # Alerts only
+            alert_rsi = rsi_data[rsi_data["alert_sent"] == True]["rsi_15m"]
+            if len(alert_rsi) > 0:
+                print("\nRSI where alerts actually triggered:")
+                print(alert_rsi.describe())
+
+            # Strong / Very Strong / Extreme only
+            if "alert_type" in df.columns:
+                strong_rsi = rsi_data[
+                    df["alert_type"].isin(["Strong", "Very Strong", "Extreme"])
+                ]["rsi_15m"]
+
+                if len(strong_rsi) > 0:
+                    print("\nRSI values for STRONG category alerts:")
+                    print(strong_rsi.describe())
+
+            # Fake spikes (has rejections)
+            if "rejected" in df.columns:
+                fake_rsi = rsi_data[df["rejected"].notna()]["rsi_15m"]
+                if len(fake_rsi) > 0:
+                    print("\nRSI where FAKE spikes occurred (rejected signals):")
+                    print(fake_rsi.describe())
+        else:
+            print("No usable RSI data found.")
+
+    # -------------------------------------------------
+
     # -------------------------
-    # 6. Save cleaned data
+    # 7. Save cleaned data
     # -------------------------
     df.to_csv("pingr_cleaned_data.csv", index=False)
     print("\n💾 Saved: pingr_cleaned_data.csv")
 
     print("\n🎉 Analysis Complete!")
+
 
 if __name__ == "__main__":
     main()
