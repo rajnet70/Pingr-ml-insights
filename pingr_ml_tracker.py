@@ -43,9 +43,12 @@ def main():
     # 2. Clean Data
     # -------------------------
     df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-    df["rsi_15m"] = pd.to_numeric(df.get("rsi_15m"), errors="coerce")
-    df["signal_score"] = pd.to_numeric(df.get("signal_score"), errors="coerce")
-    df["heat_index"] = pd.to_numeric(df.get("heat_index"), errors="coerce")
+    df["hour"] = df["timestamp"].dt.hour
+
+    numeric_cols = ["rsi_15m", "signal_score", "heat_index"]
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
     print("✅ Data cleaned\n")
 
@@ -74,7 +77,7 @@ def main():
         print("No alerts found.")
 
     # -------------------------------------------------
-    # 6. RSI RANGE ANALYSIS  (NEW SECTION YOU REQUESTED)
+    # 6. RSI RANGE ANALYSIS
     # -------------------------------------------------
     print("\n🔵 --- RSI RANGE ANALYSIS ---\n")
 
@@ -91,30 +94,66 @@ def main():
                 print("\nRSI where alerts actually triggered:")
                 print(alert_rsi.describe())
 
-            # Strong / Very Strong / Extreme only
-            if "alert_type" in df.columns:
-                strong_rsi = rsi_data[
-                    df["alert_type"].isin(["Strong", "Very Strong", "Extreme"])
-                ]["rsi_15m"]
-
-                if len(strong_rsi) > 0:
-                    print("\nRSI values for STRONG category alerts:")
-                    print(strong_rsi.describe())
-
-            # Fake spikes (has rejections)
+            # Fake spikes (rejected)
             if "rejected" in df.columns:
                 fake_rsi = rsi_data[df["rejected"].notna()]["rsi_15m"]
                 if len(fake_rsi) > 0:
                     print("\nRSI where FAKE spikes occurred (rejected signals):")
                     print(fake_rsi.describe())
-        else:
-            print("No usable RSI data found.")
 
     # -------------------------------------------------
+    # 7. NEW — Heat Index Distribution
+    # -------------------------------------------------
+    print("\n🔥 --- HEAT INDEX DISTRIBUTION ---")
+    if "heat_index" in df.columns:
+        print(df["heat_index"].describe())
 
-    # -------------------------
-    # 7. Save cleaned data
-    # -------------------------
+    # -------------------------------------------------
+    # 8. NEW — Top Coins by Average Score
+    # -------------------------------------------------
+    print("\n🏆 --- TOP PERFORMING COINS (Avg Score) ---")
+    if "signal_score" in df.columns:
+        top = df.groupby("symbol")["signal_score"].mean().sort_values(ascending=False).head(15)
+        print(top)
+
+    # -------------------------------------------------
+    # 9. NEW — Weakest Coins by Score
+    # -------------------------------------------------
+    print("\n🐢 --- LOWEST PERFORMING COINS (Avg Score) ---")
+    worst = df.groupby("symbol")["signal_score"].mean().sort_values().head(10)
+    print(worst)
+
+    # -------------------------------------------------
+    # 10. NEW — MACD Alignment Breakdown
+    # -------------------------------------------------
+    print("\n📈 --- MACD ALIGNMENT BREAKDOWN ---")
+    try:
+        macd_counts = df["context"].apply(
+            lambda x: x.get("macd_alignment") if isinstance(x, dict) else None
+        ).value_counts()
+        print(macd_counts)
+    except:
+        print("MACD context not available.")
+
+    # -------------------------------------------------
+    # 11. NEW — Rejection Reason Frequency
+    # -------------------------------------------------
+    print("\n⛔ --- REJECTION REASONS ---")
+    if "rejected" in df.columns:
+        reasons = df["rejected"].dropna().explode().value_counts().head(15)
+        print(reasons)
+
+    # -------------------------------------------------
+    # 12. NEW — Alert Frequency by Hour (for timing optimization)
+    # -------------------------------------------------
+    print("\n⏰ --- ALERTS BY HOUR OF DAY ---")
+    if len(alerts) > 0:
+        hourly = alerts.groupby("hour").size()
+        print(hourly)
+
+    # -------------------------------------------------
+    # 13. Save cleaned data
+    # -------------------------------------------------
     df.to_csv("pingr_cleaned_data.csv", index=False)
     print("\n💾 Saved: pingr_cleaned_data.csv")
 
