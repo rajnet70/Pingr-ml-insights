@@ -135,7 +135,6 @@ def main():
     # ============================================================
     print("\n⚡ Generating advanced momentum analysis...\n")
 
-    # Detect momentum cycles
     cycles = []
     active = {}
 
@@ -143,7 +142,7 @@ def main():
         sym = row["symbol"]
         ts = row["timestamp"]
 
-        # Start when alert_sent == True
+        # Start cycle when alert_sent == True
         if row.get("alert_sent"):
             active[sym] = {
                 "symbol": sym,
@@ -156,60 +155,45 @@ def main():
                 "gain": None,
             }
 
-        # End when momentum_end is triggered
-        if row["event_type"] == "momentum_end":
-            if sym in active:
-                active[sym]["end"] = ts
-                active[sym]["end_reason"] = row.get("meta_reason")
-                active[sym]["gain"] = row.get("meta_gain")
-                cycles.append(active[sym])
-                del active[sym]
+        # End cycle when momentum_end
+        if row["event_type"] == "momentum_end" and sym in active:
+            active[sym]["end"] = ts
+            active[sym]["end_reason"] = row.get("meta_reason")
+            active[sym]["gain"] = row.get("meta_gain")
+            cycles.append(active[sym])
+            del active[sym]
 
-    # Close remaining cycles (still open)
+    # Remaining open cycles
     for sym, c in active.items():
         c["end"] = None
         c["end_reason"] = "still_active"
-        c["gain"] = None
         cycles.append(c)
 
     cycles_df = pd.DataFrame(cycles)
 
-    # If no cycles found
     if cycles_df.empty:
         print("⚠️ No momentum cycles detected.")
     else:
-        # Duration
         cycles_df["duration_min"] = cycles_df.apply(
             lambda r: (r["end"] - r["start"]).total_seconds() / 60 if pd.notna(r["end"]) else None,
             axis=1
         )
 
-        # Success classification (Option C)
         cycles_df["success_gain"] = cycles_df["gain"].apply(lambda g: g >= 1.2 if g is not None else False)
-        cycles_df["success_structural"] = cycles_df["end_reason"].apply(
-            lambda r: r is None or r == "still_active"
-        )
-        cycles_df["failure"] = cycles_df["end_reason"].apply(
-            lambda r: r in ["rsi_weakening", "price_drop_stop", "timeout"]
-        )
+        cycles_df["success_structural"] = cycles_df["end_reason"].apply(lambda r: r in [None, "still_active"])
+        cycles_df["failure"] = cycles_df["end_reason"].apply(lambda r: r in ["rsi_weakening", "price_drop_stop", "timeout"])
 
-        # Save CSV
         cycles_df.to_csv("momentum_cycles.csv", index=False)
 
-        # Print highlights
-        total_cycles = len(cycles_df)
-        success_total = cycles_df["success_gain"].sum() + cycles_df["success_structural"].sum()
-        failure_total = cycles_df["failure"].sum()
-
-        print("📈 Momentum Cycles:", total_cycles)
-        print("   ✔ Success (gain/structural):", int(success_total))
-        print("   ❌ Failures:", int(failure_total))
-        print("   ⏳ Still active:", sum(cycles_df["end_reason"] == "still_active"))
+        print("📈 Momentum Cycles:", len(cycles_df))
+        print("✔ Success (gain/structural):", int(cycles_df["success_gain"].sum() + cycles_df["success_structural"].sum()))
+        print("❌ Failures:", int(cycles_df["failure"].sum()))
+        print("⏳ Still active:", int(sum(cycles_df["end_reason"] == "still_active")))
 
         print("\n📉 Gain Distribution:")
         print(cycles_df["gain"].describe())
 
-        # Symbol-level performance
+        # Symbol stats
         symbol_stats = cycles_df.groupby("symbol").agg({
             "success_gain": "sum",
             "success_structural": "sum",
@@ -219,13 +203,12 @@ def main():
         })
         symbol_stats.to_csv("momentum_per_symbol.csv")
 
-        # Hour performance
+        # Hour stats
         df["momentum_hour"] = df["timestamp"].dt.hour
-        hour_stats = cycles_df.merge(df[["symbol", "hour"]], on="symbol", how="left")
-        hour_perf = hour_stats.groupby("hour")["success_gain"].mean()
+        hour_perf = cycles_df.merge(df[["symbol", "hour"]], on="symbol", how="left").groupby("hour")["success_gain"].mean()
         hour_perf.to_csv("momentum_by_hour.csv")
 
-        # RSI buckets
+        # RSI Bucket
         def rsi_bucket(x):
             if x is None: return None
             if x < 40: return "oversold"
@@ -234,25 +217,27 @@ def main():
             return "overbought"
 
         cycles_df["rsi_bucket"] = cycles_df["start_rsi"].apply(rsi_bucket)
-        rsi_stats = cycles_df.groupby("rsi_bucket")["success_gain"].mean()
-        rsi_stats.to_csv("momentum_rsi_buckets.csv")
+        cycles_df.groupby("rsi_bucket")["success_gain"].mean().to_csv("momentum_rsi_buckets.csv")
 
-        # Heat impact
-        heat_stats = cycles_df.groupby(pd.qcut(cycles_df["start_heat"], 4))["success_gain"].mean()
-        heat_stats.to_csv("momentum_heat_impact.csv")
+        # SAFE HEAT IMPACT (fixed)
+        try:
+            heat_bins = pd.qcut(cycles_df["start_heat"], q=4, duplicates="drop")
+            heat_stats = cycles_df.groupby(heat_bins)["success_gain"].mean()
+            heat_stats.to_csv("momentum_heat_impact.csv")
+        except Exception as e:
+            print(f"⚠️ Heat impact skipped: {e}")
 
-        # MACD impact
+        # MACD
         macd_stats = cycles_df.groupby("start_macd")["success_gain"].mean()
         macd_stats.to_csv("momentum_macd_stats.csv")
 
-        # Advanced summary JSON
+        # Summary JSON
         summary = {
-            "total_cycles": int(total_cycles),
-            "success_total": int(success_total),
-            "failures": int(failure_total),
+            "total_cycles": len(cycles_df),
+            "success_total": int(cycles_df["success_gain"].sum() + cycles_df["success_structural"].sum()),
+            "failures": int(cycles_df["failure"].sum()),
             "still_active": int(sum(cycles_df["end_reason"] == "still_active")),
             "gain_distribution": cycles_df["gain"].describe().fillna(0).to_dict(),
-            "top_symbols": symbol_stats.sort_values("gain", ascending=False).head(10).to_dict(),
         }
         with open("momentum_advanced_summary.json", "w") as f:
             json.dump(summary, f, indent=2)
@@ -266,7 +251,7 @@ def main():
         print("   - momentum_macd_stats.csv")
         print("   - momentum_advanced_summary.json")
 
-    # Save cleaned dataset
+    # Save master dataset
     df.to_csv("pingr_cleaned_data.csv", index=False)
     print("\n🎉 Analysis Complete!")
 
