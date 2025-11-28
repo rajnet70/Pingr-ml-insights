@@ -18,14 +18,29 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install pandas
+          pip install pandas numpy
 
       - name: Run ML tracker
         run: |
           python pingr_ml_tracker.py
 
+      # Upload main cleaned dataset
       - name: Upload cleaned CSV
         uses: actions/upload-artifact@v4
         with:
           name: pingr_cleaned_data
           path: pingr_cleaned_data.csv
+
+      # Upload ALL advanced ML analysis files
+      - name: Upload ML Report Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pingr-ml-reports
+          path: |
+            momentum_cycles.csv
+            momentum_per_symbol.csv
+            momentum_by_hour.csv
+            momentum_rsi_buckets.csv
+            momentum_heat_impact.csv
+            momentum_macd_stats.csv
+            momentum_advanced_summary.json
