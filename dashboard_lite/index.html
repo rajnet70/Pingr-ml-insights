@@ -5,53 +5,65 @@
     <title>Pingr Dashboard Lite</title>
 
     <style>
+        /* ------------------------------
+           DARK MODE THEME
+        --------------------------------*/
         body {
-            background-color: #0e0e0e;
-            color: #e0e0e0;
-            font-family: Arial, sans-serif;
+            background-color: #0d0d0d;
+            color: #e6e6e6;
+            font-family: "Inter", Arial, sans-serif;
             margin: 0;
             padding: 0;
         }
 
         header {
-            background: #1a1a1a;
+            background: #141414;
             padding: 20px;
             text-align: center;
             font-size: 26px;
-            font-weight: bold;
-            border-bottom: 1px solid #333;
+            font-weight: 600;
+            border-bottom: 1px solid #2a2a2a;
+            letter-spacing: 0.5px;
         }
 
         .container {
-            padding: 20px;
+            padding: 22px;
         }
 
         #status {
             font-size: 14px;
-            color: #8c8c8c;
-            margin-bottom: 15px;
+            color: #7c7c7c;
+            margin-bottom: 18px;
         }
 
         h2 {
-            margin-top: 30px;
-            color: #f2f2f2;
-            border-bottom: 1px solid #333;
+            margin-top: 32px;
+            color: #f5f5f5;
+            border-bottom: 1px solid #2e2e2e;
             padding-bottom: 8px;
+            font-weight: 500;
         }
 
+        /* Item styling */
         .item {
-            background: #1a1a1a;
-            padding: 12px;
-            margin: 6px 0;
+            background: #141414;
+            padding: 14px 16px;
+            margin: 8px 0;
             border-radius: 6px;
             display: flex;
             justify-content: space-between;
             font-size: 15px;
-            border: 1px solid #2a2a2a;
+            border: 1px solid #242424;
+            transition: background 0.15s ease;
+        }
+
+        .item:hover {
+            background: #181818;
         }
 
         .item strong {
-            color: #00d17d;
+            color: #00e18f;
+            font-weight: 600;
         }
     </style>
 </head>
