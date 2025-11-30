@@ -2,8 +2,8 @@
 
 async function loadCSV() {
     try {
-        // Load from same folder (/docs)
-        const res = await fetch("pingr_cleaned_data.csv", { cache: "no-store" });
+        // Load from SAME DIRECTORY on GitHub Pages (/docs)
+        const res = await fetch("./pingr_cleaned_data.csv", { cache: "no-store" });
 
         if (!res.ok) {
             document.getElementById("status").innerText = "❌ No data found. Run ML script first.";
@@ -39,8 +39,9 @@ async function buildDashboard() {
     const header = rows[0];
     const data = parseCSV(header, rows.slice(1));
 
+    // Convert types
     data.forEach(d => {
-        d.alert_sent = (d.alert_sent === "True" || d.alert_sent === "TRUE" || d.alert_sent === "true");
+        d.alert_sent = (d.alert_sent === "True" || d.alert_sent === "true");
         d.signal_score = parseFloat(d.signal_score) || 0;
     });
 
@@ -59,8 +60,11 @@ async function buildDashboard() {
     });
 
     const ranked = Object.entries(scores)
-        .map(([sym, arr]) => ({ sym, avg: arr.reduce((a,b)=>a+b,0)/arr.length }))
-        .sort((a,b) => b.avg - a.avg)
+        .map(([sym, arr]) => ({
+            sym,
+            avg: arr.reduce((a, b) => a + b, 0) / arr.length
+        }))
+        .sort((a, b) => b.avg - a.avg)
         .slice(0, 10);
 
     const html = ranked.map(r => `
