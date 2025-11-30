@@ -26,18 +26,6 @@ jobs:
         run: |
           python pingr_ml_tracker.py
 
-      - name: Move results into /docs/
-        run: |
-          mkdir -p docs
-          mv pingr_cleaned_data.csv docs/ || echo "No cleaned data"
-          mv momentum_cycles.csv docs/ || echo "No cycles"
-          mv momentum_per_symbol.csv docs/ || echo "No per symbol"
-          mv momentum_by_hour.csv docs/ || echo "No hour file"
-          mv momentum_rsi_buckets.csv docs/ || echo "No rsi buckets"
-          mv momentum_heat_impact.csv docs/ || echo "No heat file"
-          mv momentum_macd_stats.csv docs/ || echo "No macd file"
-          mv momentum_advanced_summary.json docs/ || echo "No summary"
-
       - name: Commit updated dashboard data
         run: |
           git config user.name "github-actions"
