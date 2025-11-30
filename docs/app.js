@@ -1,9 +1,9 @@
-// Dashboard Lite - Loads pingr_cleaned_data.csv and builds stats
+// Dashboard Lite - Loads pingr_cleaned_data.csv from /docs and builds stats
 
 async function loadCSV() {
     try {
-        // Load from repo root
-        const res = await fetch("../pingr_cleaned_data.csv", { cache: "no-store" });
+        // Load from same folder (/docs)
+        const res = await fetch("pingr_cleaned_data.csv", { cache: "no-store" });
 
         if (!res.ok) {
             document.getElementById("status").innerText = "❌ No data found. Run ML script first.";
@@ -22,7 +22,7 @@ async function loadCSV() {
 function parseCSV(header, rows) {
     const items = [];
     rows.forEach(r => {
-        if (r.length !== header.length) return; // ignore malformed rows
+        if (r.length !== header.length) return;
         let obj = {};
         header.forEach((h, i) => obj[h] = r[i]);
         items.push(obj);
@@ -39,7 +39,6 @@ async function buildDashboard() {
     const header = rows[0];
     const data = parseCSV(header, rows.slice(1));
 
-    // Convert alert_sent to Boolean safely
     data.forEach(d => {
         d.alert_sent = (d.alert_sent === "True" || d.alert_sent === "TRUE" || d.alert_sent === "true");
         d.signal_score = parseFloat(d.signal_score) || 0;
@@ -53,23 +52,17 @@ async function buildDashboard() {
         return;
     }
 
-    // Calculate top coins by avg score
     const scores = {};
     alerts.forEach(a => {
-        const sym = a.symbol;
-        if (!scores[sym]) scores[sym] = [];
-        scores[sym].push(a.signal_score);
+        if (!scores[a.symbol]) scores[a.symbol] = [];
+        scores[a.symbol].push(a.signal_score);
     });
 
     const ranked = Object.entries(scores)
-        .map(([sym, arr]) => ({
-            sym,
-            avg: arr.reduce((a, b) => a + b, 0) / arr.length
-        }))
-        .sort((a, b) => b.avg - a.avg)
+        .map(([sym, arr]) => ({ sym, avg: arr.reduce((a,b)=>a+b,0)/arr.length }))
+        .sort((a,b) => b.avg - a.avg)
         .slice(0, 10);
 
-    // Inject into UI
     const html = ranked.map(r => `
         <div class="item">
             <span>${r.sym}</span>
