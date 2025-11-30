@@ -1,63 +1,84 @@
-// Dashboard Lite - Dark Mode Engine
-// Loads pingr_cleaned_data.csv (latest ML output) and builds stats
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pingr Dashboard Lite</title>
 
-async function loadCSV() {
-    try {
-        const res = await fetch("../pingr_cleaned_data.csv");
-        const text = await res.text();
-        const rows = text.split("\n").map(r => r.split(","));
-        return rows;
-    } catch (err) {
-        console.error("Failed to load CSV:", err);
-        document.getElementById("status").innerText = "❌ Unable to load data.";
-    }
-}
+    <style>
+        body {
+            background-color: #0d0d0d;
+            color: #e6e6e6;
+            font-family: "Inter", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
 
-// Simple CSV → JSON converter
-function parseCSV(header, rows) {
-    return rows.map(r => {
-        let obj = {};
-        header.forEach((h, i) => obj[h] = r[i]);
-        return obj;
-    });
-}
+        header {
+            background: #161616;
+            padding: 22px;
+            text-align: center;
+            font-size: 28px;
+            font-weight: 700;
+            border-bottom: 1px solid #2a2a2a;
+            letter-spacing: 0.5px;
+        }
 
-async function buildDashboard() {
-    document.getElementById("status").innerText = "Loading...";
+        .container {
+            padding: 25px;
+            max-width: 900px;
+            margin: auto;
+        }
 
-    const rows = await loadCSV();
-    if (!rows) return;
+        #status {
+            font-size: 15px;
+            color: #9a9a9a;
+            margin-bottom: 15px;
+        }
 
-    const header = rows[0];
-    const data = parseCSV(header, rows.slice(1));
+        h2 {
+            margin-top: 30px;
+            margin-bottom: 15px;
+            color: #ffffff;
+            font-size: 20px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 6px;
+        }
 
-    // Filter alerts sent
-    const alerts = data.filter(d => d.alert_sent === "True");
+        .item {
+            background: #161616;
+            padding: 14px;
+            margin: 6px 0;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 16px;
+            border: 1px solid #262626;
+            transition: 0.2s;
+        }
 
-    // Top coins
-    const scores = {};
-    alerts.forEach(a => {
-        const sym = a.symbol;
-        const s = parseFloat(a.signal_score) || 0;
-        if (!scores[sym]) scores[sym] = [];
-        scores[sym].push(s);
-    });
+        .item:hover {
+            border-color: #00d17d;
+            background: #1c1c1c;
+        }
 
-    const ranked = Object.entries(scores)
-        .map(([sym, arr]) => ({ sym, avg: arr.reduce((a,b)=>a+b,0)/arr.length }))
-        .sort((a,b) => b.avg - a.avg)
-        .slice(0, 10);
+        .item strong {
+            color: #00f7a3;
+        }
+    </style>
+</head>
 
-    // Inject into HTML
-    const html = ranked.map(r => `
-        <div class="item">
-            <span>${r.sym}</span>
-            <strong>${r.avg.toFixed(2)}</strong>
-        </div>
-    `).join("");
+<body>
 
-    document.getElementById("topCoins").innerHTML = html;
-    document.getElementById("status").innerText = "Data Loaded ✓";
-}
+    <header>Pingr Dashboard Lite</header>
 
-buildDashboard();
+    <div class="container">
+        <div id="status">Waiting for data...</div>
+
+        <h2>Top Coins (Avg Signal Score)</h2>
+        <div id="topCoins">Loading...</div>
+    </div>
+
+    <script src="app.js"></script>
+
+</body>
+</html>
