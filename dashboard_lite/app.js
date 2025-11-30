@@ -1,84 +1,84 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Pingr Dashboard Lite</title>
+// Dashboard Lite - Loads pingr_cleaned_data.csv and builds stats
 
-    <style>
-        body {
-            background-color: #0d0d0d;
-            color: #e6e6e6;
-            font-family: "Inter", Arial, sans-serif;
-            margin: 0;
-            padding: 0;
+async function loadCSV() {
+    try {
+        // Load from repo root
+        const res = await fetch("../pingr_cleaned_data.csv", { cache: "no-store" });
+
+        if (!res.ok) {
+            document.getElementById("status").innerText = "❌ No data found. Run ML script first.";
+            return null;
         }
 
-        header {
-            background: #161616;
-            padding: 22px;
-            text-align: center;
-            font-size: 28px;
-            font-weight: 700;
-            border-bottom: 1px solid #2a2a2a;
-            letter-spacing: 0.5px;
-        }
+        const text = await res.text();
+        return text.trim().split("\n").map(r => r.split(","));
+    } catch (err) {
+        console.error("Failed to load CSV:", err);
+        document.getElementById("status").innerText = "❌ Unable to load data.";
+        return null;
+    }
+}
 
-        .container {
-            padding: 25px;
-            max-width: 900px;
-            margin: auto;
-        }
+function parseCSV(header, rows) {
+    const items = [];
+    rows.forEach(r => {
+        if (r.length !== header.length) return; // ignore malformed rows
+        let obj = {};
+        header.forEach((h, i) => obj[h] = r[i]);
+        items.push(obj);
+    });
+    return items;
+}
 
-        #status {
-            font-size: 15px;
-            color: #9a9a9a;
-            margin-bottom: 15px;
-        }
+async function buildDashboard() {
+    document.getElementById("status").innerText = "Loading...";
 
-        h2 {
-            margin-top: 30px;
-            margin-bottom: 15px;
-            color: #ffffff;
-            font-size: 20px;
-            border-bottom: 1px solid #333;
-            padding-bottom: 6px;
-        }
+    const rows = await loadCSV();
+    if (!rows) return;
 
-        .item {
-            background: #161616;
-            padding: 14px;
-            margin: 6px 0;
-            border-radius: 6px;
-            display: flex;
-            justify-content: space-between;
-            font-size: 16px;
-            border: 1px solid #262626;
-            transition: 0.2s;
-        }
+    const header = rows[0];
+    const data = parseCSV(header, rows.slice(1));
 
-        .item:hover {
-            border-color: #00d17d;
-            background: #1c1c1c;
-        }
+    // Convert alert_sent to Boolean safely
+    data.forEach(d => {
+        d.alert_sent = (d.alert_sent === "True" || d.alert_sent === "TRUE" || d.alert_sent === "true");
+        d.signal_score = parseFloat(d.signal_score) || 0;
+    });
 
-        .item strong {
-            color: #00f7a3;
-        }
-    </style>
-</head>
+    const alerts = data.filter(d => d.alert_sent);
 
-<body>
+    if (alerts.length === 0) {
+        document.getElementById("topCoins").innerHTML = "<i>No alerts yet.</i>";
+        document.getElementById("status").innerText = "Ready ✓";
+        return;
+    }
 
-    <header>Pingr Dashboard Lite</header>
+    // Calculate top coins by avg score
+    const scores = {};
+    alerts.forEach(a => {
+        const sym = a.symbol;
+        if (!scores[sym]) scores[sym] = [];
+        scores[sym].push(a.signal_score);
+    });
 
-    <div class="container">
-        <div id="status">Waiting for data...</div>
+    const ranked = Object.entries(scores)
+        .map(([sym, arr]) => ({
+            sym,
+            avg: arr.reduce((a, b) => a + b, 0) / arr.length
+        }))
+        .sort((a, b) => b.avg - a.avg)
+        .slice(0, 10);
 
-        <h2>Top Coins (Avg Signal Score)</h2>
-        <div id="topCoins">Loading...</div>
-    </div>
+    // Inject into UI
+    const html = ranked.map(r => `
+        <div class="item">
+            <span>${r.sym}</span>
+            <strong>${r.avg.toFixed(2)}</strong>
+        </div>
+    `).join("");
 
-    <script src="app.js"></script>
+    document.getElementById("topCoins").innerHTML = html;
+    document.getElementById("status").innerText = "Dashboard Loaded ✓";
+}
 
-</body>
-</html>
+buildDashboard();
