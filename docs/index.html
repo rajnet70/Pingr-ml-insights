@@ -25,7 +25,7 @@
 
         .container {
             padding: 25px;
-            max-width: 900px;
+            max-width: 1000px;
             margin: auto;
         }
 
@@ -44,19 +44,16 @@
             padding-bottom: 6px;
         }
 
-        .item {
+        .item, .stat-box {
             background: #161616;
             padding: 14px;
             margin: 6px 0;
             border-radius: 6px;
-            display: flex;
-            justify-content: space-between;
-            font-size: 16px;
             border: 1px solid #262626;
             transition: 0.2s;
         }
 
-        .item:hover {
+        .item:hover, .stat-box:hover {
             border-color: #00d17d;
             background: #1c1c1c;
         }
@@ -69,16 +66,28 @@
 
 <body>
 
-    <header>Pingr Dashboard Lite</header>
+<header>Pingr Dashboard Lite</header>
 
-    <div class="container">
-        <div id="status">Waiting for data...</div>
+<div class="container">
+    <div id="status">Waiting for data...</div>
 
-        <h2>Top Coins (Avg Signal Score)</h2>
-        <div id="topCoins">Loading...</div>
-    </div>
+    <h2>Top Coins (Avg Signal Score)</h2>
+    <div id="topCoins">Loading...</div>
 
-    <script src="app.js"></script>
+    <h2>Score Distribution</h2>
+    <div id="scoreStats">Loading...</div>
+
+    <h2>RSI Stats (Alerts Only)</h2>
+    <div id="rsiStats">Loading...</div>
+
+    <h2>Heat Index Distribution</h2>
+    <div id="heatStats">Loading...</div>
+
+    <h2>Momentum Summary</h2>
+    <div id="momentumSummary">Loading...</div>
+</div>
+
+<script src="app.js"></script>
 
 </body>
 </html>
