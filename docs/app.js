@@ -1,90 +1,85 @@
-// Dashboard Lite - Loads pingr_cleaned_data.csv from /docs and builds stats
+// Dashboard Lite - DEBUG MODE ENABLED
 
 async function loadCSV() {
     try {
-        console.log("Fetching CSV from:", window.location.href);
+        console.log("Fetching CSV from: ./pingr_cleaned_data.csv");
 
-        // Load from SAME DIRECTORY on GitHub Pages (/docs)
-        const res = await fetch("pingr_cleaned_data.csv", { cache: "no-store" });
+        const res = await fetch("./pingr_cleaned_data.csv", { cache: "no-store" });
 
         if (!res.ok) {
             document.getElementById("status").innerText =
-                "❌ Data file not found. Run ML workflow.";
+                "❌ CSV not found. Run ML workflow.";
             return null;
         }
 
         const text = await res.text();
+        console.log("Raw CSV text loaded:", text.slice(0, 300)); // first 300 chars
 
-        return text
-            .trim()
-            .split("\n")
-            .map(r => r.split(","));
+        return text.trim().split("\n").map(r => r.split(","));
     } catch (err) {
-        console.error("Failed to load CSV:", err);
+        console.error("❌ CSV load error:", err);
         document.getElementById("status").innerText = "❌ Unable to load CSV.";
         return null;
     }
 }
 
 function parseCSV(header, rows) {
+    console.log("CSV Header:", header);
+
     const items = [];
 
-    rows.forEach(r => {
-        if (r.length < header.length) return; // skip malformed rows
-
+    rows.forEach((r, idx) => {
+        if (r.length !== header.length) {
+            console.warn("⚠️ Row length mismatch at line", idx + 2, r);
+            return;
+        }
         let obj = {};
-        header.forEach((h, i) => {
-            obj[h] = r[i];
-        });
-
+        header.forEach((h, i) => obj[h] = r[i]);
         items.push(obj);
     });
 
+    console.log("Parsed items count:", items.length);
     return items;
 }
 
 async function buildDashboard() {
-    document.getElementById("status").innerText = "Loading data...";
+    document.getElementById("status").innerText = "Loading... (Debug ON)";
 
     const rows = await loadCSV();
-    if (!rows) {
-        console.warn("CSV failed to load.");
-        return;
-    }
+    if (!rows) return;
 
     const header = rows[0];
     const data = parseCSV(header, rows.slice(1));
 
-    // Convert types properly
-    data.forEach(d => {
-        d.alert_sent =
-            d.alert_sent === "True" ||
-            d.alert_sent === "true" ||
-            d.alert_sent === "TRUE";
+    console.log("Full parsed dataset:", data.slice(0, 5)); // show first 5 rows
 
+    // Convert types
+    data.forEach(d => {
+        d.alert_sent = (d.alert_sent === "True" || d.alert_sent === "true");
         d.signal_score = parseFloat(d.signal_score) || 0;
     });
 
-    // Filter real alerts
-    const alerts = data.filter(d => d.alert_sent === true);
+    const alerts = data.filter(d => d.alert_sent);
 
-    console.log("Loaded alerts:", alerts.length);
+    console.log("Filtered alerts:", alerts);
 
     if (alerts.length === 0) {
         document.getElementById("topCoins").innerHTML =
             "<i>No alerts found in dataset.</i>";
-        document.getElementById("status").innerText = "Ready ✓";
+        document.getElementById("status").innerText =
+            "Loaded ✓ (but no alerts)";
         return;
     }
 
-    // Group scores
+    // group by symbol
     const scores = {};
     alerts.forEach(a => {
         if (!scores[a.symbol]) scores[a.symbol] = [];
         scores[a.symbol].push(a.signal_score);
     });
 
-    // Rank by avg score
+    console.log("Grouped score object:", scores);
+
     const ranked = Object.entries(scores)
         .map(([sym, arr]) => ({
             sym,
@@ -93,19 +88,14 @@ async function buildDashboard() {
         .sort((a, b) => b.avg - a.avg)
         .slice(0, 10);
 
-    console.log("Top Coins:", ranked);
+    console.log("Top coins ranked:", ranked);
 
-    // Render UI
-    const html = ranked
-        .map(
-            r => `
+    const html = ranked.map(r => `
         <div class="item">
             <span>${r.sym}</span>
             <strong>${r.avg.toFixed(2)}</strong>
         </div>
-    `
-        )
-        .join("");
+    `).join("");
 
     document.getElementById("topCoins").innerHTML = html;
     document.getElementById("status").innerText = "Dashboard Loaded ✓";
