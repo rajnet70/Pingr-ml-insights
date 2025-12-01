@@ -1,45 +1,49 @@
-// DASHBOARD LITE – FULL VERSION (Top Coins + Score + RSI + Heat + Momentum)
+// Dashboard Lite - Full Multi-Stats Version (Debug Enabled)
 
 async function loadCSV() {
     try {
-        console.log("Fetching CSV from /docs...");
+        console.log("Fetching CSV from ./pingr_cleaned_data.csv …");
+
         const res = await fetch("./pingr_cleaned_data.csv", { cache: "no-store" });
 
         if (!res.ok) {
             document.getElementById("status").innerText =
-                "❌ CSV not found. Run ML workflow.";
+                "❌ CSV missing. Run workflow.";
             return null;
         }
 
         const text = await res.text();
+        console.log("CSV Loaded, first 200 chars:", text.slice(0, 200));
+
         return text.trim().split("\n").map(r => r.split(","));
     } catch (err) {
-        console.error("❌ CSV load error:", err);
-        document.getElementById("status").innerText = "❌ Unable to load CSV.";
+        console.error("CSV Load Error:", err);
+        document.getElementById("status").innerText = "❌ Load error.";
         return null;
     }
 }
 
 function parseCSV(header, rows) {
     const items = [];
-    rows.forEach((r, i) => {
+    rows.forEach((r) => {
         if (r.length !== header.length) return;
         let obj = {};
-        header.forEach((h, j) => obj[h] = r[j]);
+        header.forEach((h, i) => obj[h] = r[i]);
         items.push(obj);
     });
     return items;
 }
 
 async function buildDashboard() {
-
-    document.getElementById("status").innerText = "Loading...";
+    document.getElementById("status").innerText = "Loading… (Debug ON)";
 
     const rows = await loadCSV();
     if (!rows) return;
 
     const header = rows[0];
     const data = parseCSV(header, rows.slice(1));
+
+    console.log("Parsed dataset (first 5):", data.slice(0, 5));
 
     // Convert types
     data.forEach(d => {
@@ -49,12 +53,12 @@ async function buildDashboard() {
         d.heat_index = parseFloat(d.heat_index) || null;
     });
 
-    // Filter alerts only
     const alerts = data.filter(d => d.alert_sent);
+    console.log("Filtered alerts:", alerts);
 
-    // ---------------------------
-    // 1) Top Coins
-    // ---------------------------
+    // -----------------------------
+    // 1) TOP COINS
+    // -----------------------------
     const scores = {};
     alerts.forEach(a => {
         if (!scores[a.symbol]) scores[a.symbol] = [];
@@ -62,67 +66,76 @@ async function buildDashboard() {
     });
 
     const ranked = Object.entries(scores)
-        .map(([sym, arr]) => ({ sym, avg: arr.reduce((a, b) => a + b, 0) / arr.length }))
+        .map(([sym, arr]) => ({
+            sym,
+            avg: arr.reduce((a, b) => a + b, 0) / arr.length
+        }))
         .sort((a, b) => b.avg - a.avg)
         .slice(0, 10);
 
-    document.getElementById("topCoins").innerHTML = ranked
-        .map(r => `<div class="item"><span>${r.sym}</span><strong>${r.avg.toFixed(2)}</strong></div>`)
-        .join("");
+    document.getElementById("topCoins").innerHTML =
+        ranked.map(r => `
+            <div class="item">
+                <span>${r.sym}</span>
+                <strong>${r.avg.toFixed(2)}</strong>
+            </div>
+        `).join("");
 
-    // ---------------------------
-    // 2) Score Distribution
-    // ---------------------------
-    const allScores = alerts.map(a => a.signal_score);
-    const avgScore = (allScores.reduce((a, b) => a + b, 0) / allScores.length).toFixed(2);
-    const maxScore = Math.max(...allScores).toFixed(2);
-    const minScore = Math.min(...allScores).toFixed(2);
+    // -----------------------------
+    // 2) SCORE DISTRIBUTION
+    // -----------------------------
+    const scoresOnly = data.map(d => d.signal_score);
+    const min = Math.min(...scoresOnly);
+    const max = Math.max(...scoresOnly);
+    const avg = scoresOnly.reduce((a, b) => a + b, 0) / scoresOnly.length;
 
     document.getElementById("scoreStats").innerHTML = `
         <div class="stat-box">
-            <b>Avg Score:</b> ${avgScore}<br>
-            <b>High:</b> ${maxScore} &nbsp; <b>Low:</b> ${minScore}
+            Min Score: <strong>${min}</strong><br>
+            Max Score: <strong>${max}</strong><br>
+            Average Score: <strong>${avg.toFixed(2)}</strong>
         </div>
     `;
 
-    // ---------------------------
-    // 3) RSI Stats
-    // ---------------------------
-    const alertRSI = alerts.map(a => a.rsi_15m).filter(x => x !== null);
-    const avgRSI = (alertRSI.reduce((a, b) => a + b, 0) / alertRSI.length).toFixed(2);
+    // -----------------------------
+    // 3) RSI (alerts only)
+    // -----------------------------
+    const rsiVals = alerts.map(a => a.rsi_15m).filter(v => v !== null);
+    const rsiAvg = rsiVals.reduce((a, b) => a + b, 0) / rsiVals.length;
 
     document.getElementById("rsiStats").innerHTML = `
         <div class="stat-box">
-            <b>Avg RSI(15m):</b> ${avgRSI}<br>
-            <b>Min:</b> ${Math.min(...alertRSI).toFixed(2)} &nbsp;
-            <b>Max:</b> ${Math.max(...alertRSI).toFixed(2)}
+            Avg RSI: <strong>${rsiAvg.toFixed(2)}</strong><br>
+            Min RSI: <strong>${Math.min(...rsiVals)}</strong><br>
+            Max RSI: <strong>${Math.max(...rsiVals)}</strong>
         </div>
     `;
 
-    // ---------------------------
-    // 4) Heat Index Stats
-    // ---------------------------
-    const heatVals = alerts.map(a => a.heat_index).filter(x => x !== null);
+    // -----------------------------
+    // 4) HEAT INDEX
+    // -----------------------------
+    const heats = data.map(d => d.heat_index).filter(v => v !== null);
+    const heatAvg = heats.reduce((a, b) => a + b, 0) / heats.length;
 
     document.getElementById("heatStats").innerHTML = `
         <div class="stat-box">
-            <b>Avg Heat:</b> ${(heatVals.reduce((a,b)=>a+b,0)/heatVals.length).toFixed(2)}<br>
-            <b>Min:</b> ${Math.min(...heatVals).toFixed(2)} &nbsp;
-            <b>Max:</b> ${Math.max(...heatVals).toFixed(2)}
+            Avg Heat Index: <strong>${heatAvg.toFixed(2)}</strong><br>
+            Max Heat: <strong>${Math.max(...heats)}</strong>
         </div>
     `;
 
-    // ---------------------------
-    // 5) Momentum Summary (simple)
-    // ---------------------------
-    const momentumFile = await fetch("./momentum_advanced_summary.json").then(r => r.json());
+    // -----------------------------
+    // 5) MOMENTUM SUMMARY
+    // -----------------------------
+    const res = await fetch("./momentum_advanced_summary.json");
+    let momentum = await res.json();
 
     document.getElementById("momentumSummary").innerHTML = `
         <div class="stat-box">
-            <b>Total Cycles:</b> ${momentumFile.total_cycles}<br>
-            <b>Successes:</b> ${momentumFile.success_total}<br>
-            <b>Failures:</b> ${momentumFile.failures}<br>
-            <b>Still Active:</b> ${momentumFile.still_active}
+            Total Cycles: <strong>${momentum.total_cycles}</strong><br>
+            Successes: <strong>${momentum.success_total}</strong><br>
+            Failures: <strong>${momentum.failures}</strong><br>
+            Still Active: <strong>${momentum.still_active}</strong>
         </div>
     `;
 
