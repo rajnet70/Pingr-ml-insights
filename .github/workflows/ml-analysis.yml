@@ -7,14 +7,11 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: write   # 🔥 REQUIRED FOR PUSH TO WORK
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -29,22 +26,10 @@ jobs:
         run: |
           python pingr_ml_tracker.py
 
-      - name: Move results to /docs (overwrite existing)
-        run: |
-          mkdir -p docs
-          cp -f pingr_cleaned_data.csv docs/pingr_cleaned_data.csv
-          cp -f momentum_cycles.csv docs/momentum_cycles.csv
-          cp -f momentum_per_symbol.csv docs/momentum_per_symbol.csv
-          cp -f momentum_by_hour.csv docs/momentum_by_hour.csv
-          cp -f momentum_rsi_buckets.csv docs/momentum_rsi_buckets.csv
-          cp -f momentum_heat_impact.csv docs/momentum_heat_impact.csv
-          cp -f momentum_macd_stats.csv docs/momentum_macd_stats.csv
-          cp -f momentum_advanced_summary.json docs/momentum_advanced_summary.json
-
-      - name: Commit & Push Updated Data
+      - name: Commit updated dashboard data
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add docs/
-          git commit -m "Update dashboard data" || echo "No changes"
+          git commit -m "Auto-update dashboard data" || echo "No changes to commit"
           git push
