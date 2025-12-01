@@ -2,63 +2,89 @@
 
 async function loadCSV() {
     try {
+        console.log("Fetching CSV from:", window.location.href);
+
         // Load from SAME DIRECTORY on GitHub Pages (/docs)
-        const res = await fetch("./pingr_cleaned_data.csv", { cache: "no-store" });
+        const res = await fetch("pingr_cleaned_data.csv", { cache: "no-store" });
 
         if (!res.ok) {
-            document.getElementById("status").innerText = "❌ No data found. Run ML script first.";
+            document.getElementById("status").innerText =
+                "❌ Data file not found. Run ML workflow.";
             return null;
         }
 
         const text = await res.text();
-        return text.trim().split("\n").map(r => r.split(","));
+
+        return text
+            .trim()
+            .split("\n")
+            .map(r => r.split(","));
     } catch (err) {
         console.error("Failed to load CSV:", err);
-        document.getElementById("status").innerText = "❌ Unable to load data.";
+        document.getElementById("status").innerText = "❌ Unable to load CSV.";
         return null;
     }
 }
 
 function parseCSV(header, rows) {
     const items = [];
+
     rows.forEach(r => {
-        if (r.length !== header.length) return;
+        if (r.length < header.length) return; // skip malformed rows
+
         let obj = {};
-        header.forEach((h, i) => obj[h] = r[i]);
+        header.forEach((h, i) => {
+            obj[h] = r[i];
+        });
+
         items.push(obj);
     });
+
     return items;
 }
 
 async function buildDashboard() {
-    document.getElementById("status").innerText = "Loading...";
+    document.getElementById("status").innerText = "Loading data...";
 
     const rows = await loadCSV();
-    if (!rows) return;
+    if (!rows) {
+        console.warn("CSV failed to load.");
+        return;
+    }
 
     const header = rows[0];
     const data = parseCSV(header, rows.slice(1));
 
-    // Convert types
+    // Convert types properly
     data.forEach(d => {
-        d.alert_sent = (d.alert_sent === "True" || d.alert_sent === "true");
+        d.alert_sent =
+            d.alert_sent === "True" ||
+            d.alert_sent === "true" ||
+            d.alert_sent === "TRUE";
+
         d.signal_score = parseFloat(d.signal_score) || 0;
     });
 
-    const alerts = data.filter(d => d.alert_sent);
+    // Filter real alerts
+    const alerts = data.filter(d => d.alert_sent === true);
+
+    console.log("Loaded alerts:", alerts.length);
 
     if (alerts.length === 0) {
-        document.getElementById("topCoins").innerHTML = "<i>No alerts yet.</i>";
+        document.getElementById("topCoins").innerHTML =
+            "<i>No alerts found in dataset.</i>";
         document.getElementById("status").innerText = "Ready ✓";
         return;
     }
 
+    // Group scores
     const scores = {};
     alerts.forEach(a => {
         if (!scores[a.symbol]) scores[a.symbol] = [];
         scores[a.symbol].push(a.signal_score);
     });
 
+    // Rank by avg score
     const ranked = Object.entries(scores)
         .map(([sym, arr]) => ({
             sym,
@@ -67,12 +93,19 @@ async function buildDashboard() {
         .sort((a, b) => b.avg - a.avg)
         .slice(0, 10);
 
-    const html = ranked.map(r => `
+    console.log("Top Coins:", ranked);
+
+    // Render UI
+    const html = ranked
+        .map(
+            r => `
         <div class="item">
             <span>${r.sym}</span>
             <strong>${r.avg.toFixed(2)}</strong>
         </div>
-    `).join("");
+    `
+        )
+        .join("");
 
     document.getElementById("topCoins").innerHTML = html;
     document.getElementById("status").innerText = "Dashboard Loaded ✓";
