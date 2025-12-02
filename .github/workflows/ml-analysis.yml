@@ -7,14 +7,9 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: write       # 🚨 REQUIRED FOR PUSH TO WORK
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -29,22 +24,16 @@ jobs:
         run: |
           python pingr_ml_tracker.py
 
-      - name: Copy output files to docs
-        run: |
-          mkdir -p docs
-          cp pingr_cleaned_data.csv docs/ || true
-          cp momentum_cycles.csv docs/ || true
-          cp momentum_per_symbol.csv docs/ || true
-          cp momentum_by_hour.csv docs/ || true
-          cp momentum_rsi_buckets.csv docs/ || true
-          cp momentum_heat_impact.csv docs/ || true
-          cp momentum_macd_stats.csv docs/ || true
-          cp momentum_advanced_summary.json docs/ || true
-
-      - name: Commit updated files
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-          git add docs/
-          git commit -m "Update dashboard data" || echo "No changes"
-          git push
+      - name: Upload ALL analysis files
+        uses: actions/upload-artifact@v4
+        with:
+          name: pingr_analysis_outputs
+          path: |
+            pingr_cleaned_data.csv
+            momentum_cycles.csv
+            momentum_per_symbol.csv
+            momentum_by_hour.csv
+            momentum_rsi_buckets.csv
+            momentum_heat_impact.csv
+            momentum_macd_stats.csv
+            momentum_advanced_summary.json
