@@ -7,7 +7,6 @@ import numpy as np
 
 LOG_FILE = "alert_log.jsonl"
 
-
 # ----------------------------------------------------
 # Helpers
 # ----------------------------------------------------
@@ -34,14 +33,19 @@ def safe_get(d, *keys):
 # MAIN
 # ----------------------------------------------------
 def main():
-    print("🔍 Pingr ML Tracker Starting...\n")
+    print("\n🔍 Pingr ML Tracker Starting...\n")
 
     path = Path(LOG_FILE)
     if not path.exists():
-        print("❌ Log file not found.")
+        print(f"❌ ERROR: {LOG_FILE} not found.")
         return
 
-    df = pd.DataFrame(load_jsonl(path))
+    raw = load_jsonl(path)
+    if not raw:
+        print("⚠️ Log file empty.")
+        return
+
+    df = pd.DataFrame(raw)
     print(f"📦 Loaded {len(df)} rows\n")
 
     # -------------------------
@@ -56,13 +60,9 @@ def main():
 
     df["event_type"] = df["event_type"].fillna("generic")
     df["meta_gain"] = df["meta"].apply(lambda x: x.get("total_gain_percent") if isinstance(x, dict) else None)
-    df["meta_reason"] = df["meta"].apply(lambda x: x.get("reason") if isinstance(x, dict) else None)
 
     alerts = df[df["alert_sent"] == True]
 
-    # ============================================================
-    # ① BASELINE REPORTING (UNCHANGED)
-    # ============================================================
     print("📊 --- HIGH LEVEL SUMMARY ---")
     print("Total entries:", len(df))
     print("Total alerts sent:", len(alerts))
@@ -80,7 +80,7 @@ def main():
     print(df.groupby("symbol")["signal_score"].mean().sort_values(ascending=False).head(15))
 
     # ============================================================
-    # ② MOMENTUM CYCLES
+    # MOMENTUM CYCLES
     # ============================================================
     cycles = []
     active = {}
@@ -93,8 +93,8 @@ def main():
                 "symbol": sym,
                 "start_rsi": row.get("rsi_15m"),
                 "start_heat": row.get("heat_index"),
-                "score": row.get("signal_score"),
-                "gain": None,
+                "signal_score": row.get("signal_score"),
+                "gain": None
             }
 
         if row["event_type"] == "momentum_end" and sym in active:
@@ -102,70 +102,83 @@ def main():
             cycles.append(active[sym])
             del active[sym]
 
-    cycles_df = pd.DataFrame(cycles).dropna(subset=["gain"])
-    cycles_df.to_csv("momentum_cycles.csv", index=False)
+    cycles_df = pd.DataFrame(cycles)
+    cycles_df = cycles_df.dropna(subset=["gain"])
 
-    # ============================================================
-    # ③ EFFECTIVENESS REPORTING (NEW)
-    # ============================================================
     print("\n📊 ALERT EFFECTIVENESS")
-    print("Momentum cycles:", len(cycles_df))
     if len(alerts) > 0:
-        print("Conversion rate:", round(len(cycles_df) / len(alerts) * 100, 2), "%")
+        conversion = round((len(cycles_df) / len(alerts)) * 100, 2)
+        print("Momentum cycles:", len(cycles_df))
+        print("Conversion rate:", conversion, "%")
 
-    # Score buckets
+    # ============================================================
+    # EFFECTIVENESS ANALYSIS
+    # ============================================================
+    print("\n📈 SCORE EFFECTIVENESS")
     cycles_df["score_bucket"] = pd.cut(
-        cycles_df["score"],
-        bins=[0, 5, 8, 12, 100],
+        cycles_df["signal_score"],
+        bins=[-10, 5, 8, 12, 100],
         labels=["low", "mid", "strong", "extreme"]
     )
-
     score_perf = cycles_df.groupby("score_bucket")["gain"].mean()
-    print("\n📈 SCORE EFFECTIVENESS")
     print(score_perf)
 
-    # RSI buckets
+    print("\n🎯 RSI PERFORMANCE")
     cycles_df["rsi_bucket"] = pd.cut(
         cycles_df["start_rsi"],
         bins=[0, 45, 55, 65, 100],
         labels=["low", "warm", "ideal", "overheated"]
     )
-
     rsi_perf = cycles_df.groupby("rsi_bucket")["gain"].mean()
-    print("\n🎯 RSI PERFORMANCE")
     print(rsi_perf)
 
-    # Heat buckets
+    print("\n🔥 HEAT PERFORMANCE")
     cycles_df["heat_bucket"] = pd.cut(
         cycles_df["start_heat"],
         bins=[0, 5, 15, 30, 100],
         labels=["low", "moderate", "high", "extreme"]
     )
-
     heat_perf = cycles_df.groupby("heat_bucket")["gain"].mean()
-    print("\n🔥 HEAT PERFORMANCE")
     print(heat_perf)
 
-    # Save reports
-    score_perf.to_csv("report_score_effectiveness.csv")
-    rsi_perf.to_csv("report_rsi_performance.csv")
-    heat_perf.to_csv("report_heat_performance.csv")
-
     # ============================================================
-    # ④ SESSION RECAP (HUMAN-READABLE)
+    # SESSION RECAP (AUTO-INTERPRETATION)
     # ============================================================
     print("\n🧠 --- SESSION TUNING SUMMARY ---")
 
-    print("✅ Best RSI zone:", rsi_perf.idxmax())
-    print("🔥 Best Heat zone:", heat_perf.idxmax())
-    print("🏆 Best Score range:", score_perf.idxmax())
+    best_rsi = rsi_perf.idxmax()
+    best_heat = heat_perf.idxmax()
+    best_score = score_perf.idxmax()
+
+    print(f"✅ Best RSI zone: {best_rsi}")
+    print(f"🔥 Best Heat zone: {best_heat}")
+    print(f"🏆 Best Score range: {best_score}")
 
     print("\n⚙️ CONFIG SUGGESTIONS")
-    print("- Keep RSI upper bound near ~65")
-    print("- Avoid chasing extreme heat spikes")
-    print("- Strong score outperforms extreme score")
+    if best_rsi == "ideal":
+        print("- Keep RSI upper bound near ~65")
+    if best_heat in ["high", "moderate"]:
+        print("- Avoid chasing extreme heat spikes")
+    if best_score == "strong":
+        print("- Strong scores outperform extreme → consider raising min_score_alert")
 
-    print("\n🎉 FULL ANALYSIS COMPLETE")
+    # ============================================================
+    # SAVE REPORTS
+    # ============================================================
+    score_perf.to_csv("report_score_effectiveness.csv")
+    rsi_perf.to_csv("report_rsi_performance.csv")
+    heat_perf.to_csv("report_heat_performance.csv")
+    cycles_df.to_csv("momentum_cycles.csv", index=False)
+    df.to_csv("pingr_cleaned_data.csv", index=False)
+
+    print("\n💾 Reports saved:")
+    print(" - report_score_effectiveness.csv")
+    print(" - report_rsi_performance.csv")
+    print(" - report_heat_performance.csv")
+    print(" - momentum_cycles.csv")
+    print(" - pingr_cleaned_data.csv")
+
+    print("\n🎉 FULL ANALYSIS COMPLETE\n")
 
 
 if __name__ == "__main__":
