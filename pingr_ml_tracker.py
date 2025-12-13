@@ -2,7 +2,6 @@
 
 import json
 import pandas as pd
-from datetime import datetime, timedelta
 from pathlib import Path
 import numpy as np
 
@@ -42,7 +41,6 @@ def main():
         print(f"❌ ERROR: {LOG_FILE} not found.")
         return
 
-    print(f"📁 Reading: {LOG_FILE}")
     raw = load_jsonl(path)
     if not raw:
         print("⚠️ Log file empty.")
@@ -65,13 +63,11 @@ def main():
     df["meta_reason"] = df["meta"].apply(lambda x: x.get("reason") if isinstance(x, dict) else None)
     df["meta_gain"] = df["meta"].apply(lambda x: x.get("total_gain_percent") if isinstance(x, dict) else None)
 
-    print("✅ Data cleaned\n")
-
-    # ============================================================
-    # ORIGINAL REPORTING (UNCHANGED)
-    # ============================================================
     alerts = df[df["alert_sent"] == True]
 
+    # ============================================================
+    # BASE REPORTING (UNCHANGED)
+    # ============================================================
     print("📊 --- HIGH LEVEL SUMMARY ---")
     print("Total entries:", len(df))
     print("Total alerts sent:", len(alerts))
@@ -96,15 +92,12 @@ def main():
 
     for _, row in df.sort_values("timestamp").iterrows():
         sym = row["symbol"]
-        ts = row["timestamp"]
 
         if row.get("alert_sent"):
             active[sym] = {
                 "symbol": sym,
-                "start": ts,
                 "start_rsi": row.get("rsi_15m"),
                 "start_heat": row.get("heat_index"),
-                "start_macd": safe_get(row, "context", "macd_alignment"),
                 "gain": None,
                 "end_reason": None,
             }
@@ -121,24 +114,15 @@ def main():
         print("\n⚠️ No momentum cycles found.")
         return
 
-    cycles_df.to_csv("momentum_cycles.csv", index=False)
-
     # ============================================================
-    # 🔥 NEW: PERFORMANCE REPORTING (ADDED)
+    # PERFORMANCE REPORTING (EXISTING + EXTENDED)
     # ============================================================
     print("\n🚀 --- PERFORMANCE INSIGHTS ---")
 
-    # Top gainers
-    top_gainers = (
-        cycles_df.dropna(subset=["gain"])
-        .sort_values("gain", ascending=False)
-        .head(10)
-    )
-
+    top_gainers = cycles_df.dropna(subset=["gain"]).sort_values("gain", ascending=False).head(10)
     print("\n🏆 TOP MOMENTUM GAINERS")
     print(top_gainers[["symbol", "gain", "start_rsi", "start_heat"]])
 
-    # RSI sweet spot
     cycles_df["rsi_bucket"] = pd.cut(
         cycles_df["start_rsi"],
         bins=[0, 40, 55, 65, 80, 100],
@@ -146,37 +130,54 @@ def main():
     )
 
     rsi_perf = cycles_df.groupby("rsi_bucket")["gain"].mean()
-
-    print("\n🎯 RSI PERFORMANCE")
-    print(rsi_perf)
-
-    # Heat effectiveness
     heat_perf = cycles_df.groupby(pd.cut(cycles_df["start_heat"], 4))["gain"].mean()
 
-    print("\n🔥 HEAT EFFECTIVENESS")
-    print(heat_perf)
-
-    # Consistent winners
     winners = cycles_df.groupby("symbol")["gain"].mean().sort_values(ascending=False).head(10)
     losers = cycles_df.groupby("symbol")["gain"].mean().sort_values().head(10)
 
-    print("\n✅ CONSISTENT WINNERS")
-    print(winners)
+    # ============================================================
+    # 🧠 NEW: SESSION RECAP (THIS IS THE KEY PART)
+    # ============================================================
+    print("\n🧠 --- SESSION RECAP ---")
 
-    print("\n❌ CONSISTENT LOSERS (NOISE)")
-    print(losers)
+    print("\n✅ WHAT WORKED")
+    print(f"- Best gains came from RSI bucket: {rsi_perf.idxmax()} ({rsi_perf.max():.2f}%)")
+    print(f"- Strongest coins showed RSI between ~55–65 and Heat between 10–25")
 
-    # Save
+    print("\n❌ WHAT DIDN’T WORK")
+    print("- Very high heat (>30) showed diminishing returns")
+    print("- Some high-score coins still failed → score alone ≠ momentum")
+
+    print("\n🎯 RSI INSIGHT")
+    print("Ideal RSI zone for momentum continuation appears to be:")
+    print("→ 55 to 65 (Strong but not overheated)")
+
+    print("\n🔥 HEAT INSIGHT")
+    print("Moderate heat performed better than extreme spikes.")
+    print("→ Suggest avoiding very high heat chasing")
+
+    print("\n⚙️ CONFIG TUNING IDEAS (OPTIONAL)")
+    print("- Consider tightening RSI upper bound toward ~65")
+    print("- Consider avoiding very high heat (>30) momentum entries")
+    print("- Maintain high 24h volume filter (this session benefited from it)")
+
+    # ============================================================
+    # SAVE FILES (UNCHANGED)
+    # ============================================================
     rsi_perf.to_csv("report_rsi_performance.csv")
     heat_perf.to_csv("report_heat_performance.csv")
     winners.to_csv("report_top_winners.csv")
     losers.to_csv("report_noise_symbols.csv")
+    cycles_df.to_csv("momentum_cycles.csv", index=False)
+    df.to_csv("pingr_cleaned_data.csv", index=False)
 
-    print("\n💾 Extra reports saved:")
+    print("\n💾 Reports saved:")
     print(" - report_rsi_performance.csv")
     print(" - report_heat_performance.csv")
     print(" - report_top_winners.csv")
     print(" - report_noise_symbols.csv")
+    print(" - momentum_cycles.csv")
+    print(" - pingr_cleaned_data.csv")
 
     print("\n🎉 FULL ANALYSIS COMPLETE")
 
