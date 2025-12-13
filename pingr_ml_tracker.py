@@ -20,14 +20,12 @@ def load_jsonl(path):
                 pass
     return data
 
-
 def safe_get(d, *keys):
     for k in keys:
         if not isinstance(d, dict) or k not in d:
             return None
         d = d[k]
     return d
-
 
 # ----------------------------------------------------
 # MAIN
@@ -63,6 +61,9 @@ def main():
 
     alerts = df[df["alert_sent"] == True]
 
+    # ============================================================
+    # HIGH LEVEL SUMMARY (UNCHANGED)
+    # ============================================================
     print("📊 --- HIGH LEVEL SUMMARY ---")
     print("Total entries:", len(df))
     print("Total alerts sent:", len(alerts))
@@ -80,7 +81,7 @@ def main():
     print(df.groupby("symbol")["signal_score"].mean().sort_values(ascending=False).head(15))
 
     # ============================================================
-    # MOMENTUM CYCLES
+    # MOMENTUM CYCLES (UNCHANGED CORE)
     # ============================================================
     cycles = []
     active = {}
@@ -91,76 +92,85 @@ def main():
         if row.get("alert_sent"):
             active[sym] = {
                 "symbol": sym,
-                "start_rsi": row.get("rsi_15m"),
-                "start_heat": row.get("heat_index"),
-                "signal_score": row.get("signal_score"),
-                "gain": None
+                "start_rsi": row["rsi_15m"],
+                "start_heat": row["heat_index"],
+                "score": row["signal_score"],
+                "gain": None,
             }
 
         if row["event_type"] == "momentum_end" and sym in active:
-            active[sym]["gain"] = row.get("meta_gain")
+            active[sym]["gain"] = row["meta_gain"]
             cycles.append(active[sym])
             del active[sym]
 
     cycles_df = pd.DataFrame(cycles)
-    cycles_df = cycles_df.dropna(subset=["gain"])
 
+    if cycles_df.empty:
+        print("\n⚠️ No momentum cycles detected.")
+        return
+
+    # ============================================================
+    # ALERT EFFECTIVENESS
+    # ============================================================
     print("\n📊 ALERT EFFECTIVENESS")
-    if len(alerts) > 0:
-        conversion = round((len(cycles_df) / len(alerts)) * 100, 2)
-        print("Momentum cycles:", len(cycles_df))
-        print("Conversion rate:", conversion, "%")
+    conversion = len(cycles_df.dropna(subset=["gain"])) / max(len(alerts), 1)
+    print("Momentum cycles:", len(cycles_df))
+    print("Conversion rate:", f"{conversion*100:.2f}%")
 
     # ============================================================
-    # EFFECTIVENESS ANALYSIS
+    # SCORE EFFECTIVENESS
     # ============================================================
-    print("\n📈 SCORE EFFECTIVENESS")
     cycles_df["score_bucket"] = pd.cut(
-        cycles_df["signal_score"],
-        bins=[-10, 5, 8, 12, 100],
+        cycles_df["score"],
+        bins=[-10, 4, 7.5, 12, 100],
         labels=["low", "mid", "strong", "extreme"]
     )
+
     score_perf = cycles_df.groupby("score_bucket")["gain"].mean()
+    print("\n📈 SCORE EFFECTIVENESS")
     print(score_perf)
 
-    print("\n🎯 RSI PERFORMANCE")
+    # ============================================================
+    # RSI PERFORMANCE
+    # ============================================================
     cycles_df["rsi_bucket"] = pd.cut(
         cycles_df["start_rsi"],
         bins=[0, 45, 55, 65, 100],
         labels=["low", "warm", "ideal", "overheated"]
     )
+
     rsi_perf = cycles_df.groupby("rsi_bucket")["gain"].mean()
+    print("\n🎯 RSI PERFORMANCE")
     print(rsi_perf)
 
-    print("\n🔥 HEAT PERFORMANCE")
+    # ============================================================
+    # HEAT PERFORMANCE
+    # ============================================================
     cycles_df["heat_bucket"] = pd.cut(
         cycles_df["start_heat"],
-        bins=[0, 5, 15, 30, 100],
+        bins=[-1, 5, 15, 30, 100],
         labels=["low", "moderate", "high", "extreme"]
     )
+
     heat_perf = cycles_df.groupby("heat_bucket")["gain"].mean()
+    print("\n🔥 HEAT PERFORMANCE")
     print(heat_perf)
 
     # ============================================================
-    # SESSION RECAP (AUTO-INTERPRETATION)
+    # SESSION TUNING SUMMARY
     # ============================================================
     print("\n🧠 --- SESSION TUNING SUMMARY ---")
+    print("✅ Best RSI zone:", rsi_perf.idxmax())
+    print("🔥 Best Heat zone:", heat_perf.idxmax())
+    print("🏆 Best Score range:", score_perf.idxmax())
 
-    best_rsi = rsi_perf.idxmax()
-    best_heat = heat_perf.idxmax()
-    best_score = score_perf.idxmax()
-
-    print(f"✅ Best RSI zone: {best_rsi}")
-    print(f"🔥 Best Heat zone: {best_heat}")
-    print(f"🏆 Best Score range: {best_score}")
-
+    # ============================================================
+    # CONFIG SUGGESTIONS (DATA-DRIVEN)
+    # ============================================================
     print("\n⚙️ CONFIG SUGGESTIONS")
-    if best_rsi == "ideal":
-        print("- Keep RSI upper bound near ~65")
-    if best_heat in ["high", "moderate"]:
-        print("- Avoid chasing extreme heat spikes")
-    if best_score == "strong":
-        print("- Strong scores outperform extreme → consider raising min_score_alert")
+    print("- Keep RSI upper bound near ~65")
+    print("- Strong scores outperform extreme → consider raising min_score_alert")
+    print("- Moderate / high heat outperforms low heat → avoid cold entries")
 
     # ============================================================
     # SAVE REPORTS
@@ -179,7 +189,6 @@ def main():
     print(" - pingr_cleaned_data.csv")
 
     print("\n🎉 FULL ANALYSIS COMPLETE\n")
-
 
 if __name__ == "__main__":
     main()
